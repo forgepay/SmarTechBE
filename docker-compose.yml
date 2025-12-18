@@ -1,0 +1,49 @@
+networks:
+  default:
+    driver: bridge
+  tg-ramp-smart_default:
+    external: true
+
+volumes:
+  postgres_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tg-ramp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tg-ramp
+      POSTGRES_PASSWORD: tg-ramp
+      POSTGRES_DB: tg-ramp
+    networks:
+      - default
+    ports:
+      - "35432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tg-ramp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: tg-ramp-api
+    build:
+      context: .
+      dockerfile: CryptoOnRamp.API/Dockerfile
+    networks:
+      - default
+      - tg-ramp-smart_default
+    ports:
+      - "35000:8080"
+    env_file:
+      # ../docker.env should contain:
+      # TELEGRAM__BOTTOKEN=your_bot_token
+      # TGRAMPSMART__ENDPOINT=https://*****
+      - ../docker.env
+    environment:
+      - CONNECTIONSTRINGS__DEFAULTCONNECTION=Host=tg-ramp-postgres;Port=5432;Database=tg-ramp;Username=tg-ramp;Password=tg-ramp
+    depends_on:
+      - postgres
